@@ -1,0 +1,9 @@
+{
+  "name": "お店search",
+  "short_name": "お店search",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fbf8f3",
+  "theme_color": "#8b6b50",
+  "lang": "ja"
+}
