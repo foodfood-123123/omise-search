@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#8b6b50"><title>お店search</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--ink:#493b31;--muted:#8a7a6d;--paper:#fbf8f3;--card:#fff;--line:#e8ddd1;--accent:#8b6b50;--soft:#f1e8df}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif}
+header{padding:24px 18px 18px;background:#eee3d7;border-bottom:1px solid var(--line)}h1{font-size:25px;margin:0 0 5px}header p{margin:0;color:var(--muted);font-size:13px}
+main{max-width:760px;margin:auto;padding:16px}section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+h2{font-size:17px;margin:0 0 12px}label{display:block;font-size:13px;color:var(--muted);margin:10px 0 5px}
+input,select,button{font:inherit}input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+button{border:0;border-radius:10px;padding:11px 14px;background:var(--accent);color:white;font-weight:600}button.secondary{background:var(--soft);color:var(--ink)}
+.item{padding:13px 0;border-bottom:1px solid var(--line)}.item:last-child{border:0}.item h3{font-size:16px;margin:0 0 5px}.meta{font-size:13px;color:var(--muted);line-height:1.6}.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.tag{font-size:11px;background:var(--soft);padding:4px 8px;border-radius:20px}
+a{color:var(--accent)}.status{font-size:13px;color:var(--muted);margin-top:8px}.empty{color:var(--muted);font-size:14px}.checks{display:flex;gap:12px;flex-wrap:wrap}
+</style></head><body>
+<header><h1>お店search</h1><p>気になるお店を探して、自分だけのリストに。</p></header>
+<main>
+<section><h2>お店を探す</h2>
+<label for="area">エリア（任意）</label><input id="area" placeholder="例：立川市／空欄なら現在地周辺">
+<div class="row"><div><label for="word">キーワード（任意）</label><input id="word" placeholder="例：焼肉"></div>
+<div><label for="genre">ジャンル</label><select id="genre"><option value="">すべて</option><option value="restaurant">飲食店</option><option value="cafe">カフェ</option><option value="fast_food">ファストフード</option><option value="bakery">パン屋</option></select></div></div>
+<div class="actions"><button id="search">お店を検索</button></div>
+<div class="status" id="status">検索にはインターネット接続が必要です。OpenStreetMapの登録情報を検索します。</div></section>
+<section><h2>検索結果</h2><div id="results" class="empty">地域を入力するか、空欄のまま現在地周辺を検索してね。</div></section>
+<section><h2>マイリスト</h2><label for="filter">分類で絞り込み</label><select id="filter"><option value="">すべて</option><option>お気に入り</option><option>行ってみたい</option><option>行ったことがある</option></select><div id="saved" class="empty" style="margin-top:12px">まだ登録されていません。</div></section>
+</main><footer style="text-align:center;color:#8a7a6d;font-size:11px;padding:10px 20px 28px">営業時間・休業日は必ず公式情報でも確認してください。</footer>
+<script>
+const $=id=>document.getElementById(id), STORE='omise-search-v1';
+let saved=JSON.parse(localStorage.getItem(STORE)||'[]');
+const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function persist(){localStorage.setItem(STORE,JSON.stringify(saved));renderSaved()}
+function renderSaved(){const f=$('filter').value,list=saved.filter(x=>!f||x.labels.includes(f));$('saved').innerHTML=list.length?list.map(x=>`<div class="item"><h3>${esc(x.name)}</h3><div class="meta">${esc(x.address||'住所情報なし')}</div><div class="tags">${x.labels.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><div class="actions"><button class="secondary" onclick="removeSaved('${x.id}')">リストから削除</button>${x.url?`<a href="${esc(x.url)}" target="_blank" rel="noopener">公式サイト</a>`:''}</div></div>`).join(''):'<p class="empty">該当するお店はありません。</p>'}
+window.removeSaved=id=>{saved=saved.filter(x=>x.id!==id);persist()};
+$('filter').addEventListener('change',renderSaved);
+function makeCard(el){const t=el.tags||{},name=t.name||'名称未登録のお店',id=String(el.type)+'-'+el.id,addr=[t['addr:full'],[t['addr:postcode'],t['addr:city'],t['addr:street'],t['addr:housenumber']].filter(Boolean).join(' ')].find(Boolean)||'',url=t.website||t['contact:website']||'',phone=t.phone||t['contact:phone']||'',hours=t.opening_hours||'未登録',lat=el.lat??el.center?.lat,lon=el.lon??el.center?.lon;
+return `<div class="item"><h3>${esc(name)}</h3><div class="meta">${esc(t.cuisine||'ジャンル未登録')}<br>${esc(addr||'住所情報なし')}<br>営業時間：${esc(hours)}<br>${phone?'電話：'+esc(phone):''}</div><div class="actions"><button onclick="addPlace('${encodeURIComponent(JSON.stringify({id,name,address:addr,url}))}')">マイリストに追加</button>${url?`<a href="${esc(url)}" target="_blank" rel="noopener">公式サイト</a>`:''}<a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=18/${lat}/${lon}" target="_blank" rel="noopener">地図</a></div></div>`}
+window.addPlace=encoded=>{const p=JSON.parse(decodeURIComponent(encoded));if(saved.some(x=>x.id===p.id)){alert('このお店は登録済みです');return}const labels=[];if(confirm('「お気に入り」に追加する？'))labels.push('お気に入り');if(confirm('「行ってみたい」に追加する？'))labels.push('行ってみたい');if(confirm('「行ったことがある」に追加する？'))labels.push('行ったことがある');if(!labels.length){alert('分類を1つ以上選んでね');return}saved.unshift({...p,labels});persist();alert('マイリストに追加したよ')};
+function getSearchTerms(word){
+  const w=word.trim().toLowerCase();
+  const mcd=['マクドナルド','マック','マクド','mcdonalds',"mcdonald's",'mcdonald’s'];
+  if(mcd.includes(w)) return ['マクドナルド',"McDonald's",'McDonald’s','McDonalds'];
+  return [word];
+}
+function getCurrentPosition(){return new Promise((resolve,reject)=>{
+  if(!navigator.geolocation){reject(new Error('この端末では位置情報を利用できません'));return;}
+  navigator.geolocation.getCurrentPosition(
+    pos=>resolve({lat:pos.coords.latitude,lon:pos.coords.longitude,label:'現在地'}),
+    err=>reject(new Error(err.code===1?'位置情報が許可されていません。Safariのサイト設定で位置情報を許可するか、エリアを入力してね。':'現在地を取得できませんでした。エリアを入力して検索してね。')),
+    {enableHighAccuracy:false,timeout:12000,maximumAge:300000}
+  );
+});}
+$('search').addEventListener('click',async()=>{
+  const area=$('area').value.trim(),word=$('word').value.trim(),genre=$('genre').value;
+  $('status').textContent=area?'エリアを検索中…':'現在地を確認中…';$('results').innerHTML='';
+  try{
+    let place;
+    if(area){
+      const geo=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(area)).then(r=>{if(!r.ok)throw new Error('エリア検索に失敗しました');return r.json()});
+      if(!geo.length)throw new Error('エリアが見つかりませんでした');
+      place={lat:+geo[0].lat,lon:+geo[0].lon,label:area};
+    }else{place=await getCurrentPosition();}
+
+    const aliases=getSearchTerms(word);
+    const tag=genre==='bakery'?'["shop"="bakery"]':genre?`["amenity"="${genre}"]`:'["amenity"~"restaurant|cafe|fast_food"]';
+    const around=`(around:5000,${place.lat},${place.lon})`;
+    let filter=tag;
+    // マクドナルドの表記ゆれは名称タグで直接検索して、検索上限による取りこぼしを減らす
+    if(word&&aliases.length>1) filter=`["name"~"${aliases.join('|')}",i]`;
+    const q=`[out:json][timeout:25];(node${filter}${around};way${filter}${around};);out center tags 100;`;
+    $('status').textContent='お店の情報を取得中…';
+    const data=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:q}).then(r=>{if(!r.ok)throw new Error('検索サーバーが混み合っています');return r.json()});
+    let els=data.elements||[];
+    if(word){
+      const terms=aliases.map(x=>x.toLowerCase());
+      els=els.filter(e=>{
+        const name=(e.tags?.name||'').toLowerCase(),cuisine=(e.tags?.cuisine||'').toLowerCase();
+        return terms.some(t=>name.includes(t)||cuisine.includes(t));
+      });
+    }
+    $('results').innerHTML=els.length?els.map(makeCard).join(''):'<p class="empty">お店が見つかりませんでした。別のエリアやキーワードで試してね。</p>';
+    $('status').textContent=`${place.label} 周辺の検索結果（最大5km）。営業時間等は未登録の場合があります。`;
+  }catch(e){$('status').textContent='検索できませんでした：'+e.message+'。少し時間をおいて再度試してね。'}
+});
+renderSaved();
+if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js?v=2').catch(()=>{});
+</script></body></html>
